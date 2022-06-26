@@ -127,3 +127,17 @@ dmypy.json
 
 # Pyre type checker
 .pyre/
+*.csv
+*.parquet
+*.png 
+*.jpg 
+*.jpeg 
+*.JPG 
+*.JPEG 
+*.bmp
+*.BMP 
+*.npy
+*.dcm 
+*.DCM 
+work_dir/
+data/
