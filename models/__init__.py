@@ -1,8 +1,8 @@
-from .mymodel import CustomizationNet 
+from .autoencoder import CXRAutoencoder
 import torch
 
-def get_model(model_name, n_classes, input_size, ckpt_path = None):
-    model = CustomizationNet( n_classes, model_name, input_size )
+def get_model(global_avg_pool, z_dim, input_size=(2,3,448,448),n_class=None, ckpt_path = None):
+    model = CXRAutoencoder(global_avg_pool=global_avg_pool, z_dim=z_dim, input_shape = input_size )
 
 
     if ckpt_path is not None:

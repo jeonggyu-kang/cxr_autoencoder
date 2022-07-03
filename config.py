@@ -13,27 +13,30 @@ def get_hyperparameters(config = None):
 
     return ret
 
+_IMAGE_WIDTH = 896
+_IMAGE_HEIGHT = 896
+
 # model-related params
 model_dict = dict(                  
-    name = [ 'hrnet_w32' ],
-    imagenet_pretrained = True,
     n_class = 5,
-    max_epoch = 25,
-    learning_rate = 1e-4,
+    max_epoch = 200,
+    learning_rate = 1e-3,
     # mile_stone = None,
-    mile_stone = [15, 20],
+    mile_stone = [80, 160],
     decay_rate = 0.1,
     loss = 'ce',   # cross-entropy (classification)
     #loss = 'mse',    # mean squared error (regresion)
-    image_size = (448,448),   # width, height
-    extra = ['gradcam_test']
+    image_size = (_IMAGE_WIDTH, _IMAGE_HEIGHT),   # width, height
+    global_avg_pool = False,
+    z_dim = 512,
+    extra = ['autoencoder-test']
 )
 
 train_pipeline = [
     dict(
         type = 'Resize',
-        width = 448,
-        height = 448
+        width = _IMAGE_WIDTH,
+        height = _IMAGE_HEIGHT
     ),
     dict(
         type= 'ToTensor'
@@ -43,8 +46,8 @@ train_pipeline = [
 test_pipeline = [
     dict(
         type = 'Resize',
-        width = 448,
-        height = 448
+        width = _IMAGE_WIDTH,
+        height = _IMAGE_HEIGHT
     ),
     dict(
         type= 'ToTensor'
@@ -57,7 +60,7 @@ data_dict = dict(
     dataset = 'CoronaryArteryDataset',
     #dataset = 'AGEDataset',
     save_root = './work_dir',
-    batch_size = 24,
+    batch_size = 4,
     workers_per_gpu = 1,
 
     train = dict(

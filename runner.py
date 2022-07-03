@@ -17,8 +17,7 @@ def trainer(
     optimizer,
     scheduler,
     meta, 
-    writer = None,
-    task_type = 'classification'
+    writer = None
 ):
 
     save_every = meta['save_every']
@@ -27,18 +26,17 @@ def trainer(
 
 
     for ep in range(1, max_epoch+1):
-        train(ep, max_epoch, model, train_loader, loss_fn, optimizer, writer, print_every, task_type)
+        train(ep, max_epoch, model, train_loader, loss_fn, optimizer, writer, print_every)
         if scheduler is not None:
             scheduler.step()
 
 
         if ep % test_every == 0:
-            acc = test(ep, max_epoch, model, test_loader, writer, task_type = task_type)
+            loss = test(ep, max_epoch, model, test_loader, writer, loss_fn = loss_fn)
+            loss *= -1
 
-            if task_type == 'regression':
-                acc *= -1
             
-            writer.update(model, acc)
+            writer.update(model, loss)
         
         if ep == 1 or ep % save_every == 0:
             writer.save(model, ep)
@@ -71,39 +69,43 @@ def tester(
 
 
 
-def train(ep, max_epoch, model, train_loader, loss_fn, optimizer, writer, _print_every, task_type):
+def train(ep, max_epoch, model, train_loader, loss_fn, optimizer, writer, _print_every):
     model.train()
+
+    epoch_loss = 0.0
     mean_loss = 0.0
 
     print_every = len(train_loader) // _print_every     
+    if print_every == 0:
+        print_every = 1
 
-    preds = []
+    recon = []
     gts = []
 
     step = 0
     step_cnt = 1
 
     global_step = (ep - 1) * len(train_loader)
+    local_step = 0
 
     for i, batch in enumerate(train_loader):
         x, y = batch
         x = x.cuda()
-        y = y.cuda()
 
-        out = model(x)
 
-        loss = loss_fn(out, y)
+        x_hat,latent_code = model(x)
+        loss = loss_fn(x_hat, x)
 
         optimizer.zero_grad()
         loss.backward()
         optimizer.step()
 
         mean_loss += loss.item()
+        epoch_loss += loss.item()
         step += 1
         global_step += 1
+        local_step += 1
 
-        preds.append(out.data.cpu())
-        gts.append(y.data.cpu())
 
         if (i+1) % print_every == 0:
             mean_loss /= step
@@ -114,98 +116,55 @@ def train(ep, max_epoch, model, train_loader, loss_fn, optimizer, writer, _print
             mean_loss = 0.0
             step = 0
             step_cnt += 1
-        
-    preds = torch.cat(preds)
-    gts = torch.cat(gts)
 
-    if task_type == 'classification':
-        acc = calc_accuracy(preds, gts)
+            # add_img
+            recon_image = vutils.make_grid(x_hat.detach().cpu().clamp(0.0,1.0), normalize=True, scale_each=True)
+            gt_image    = vutils.make_grid(x.detach().cpu().clamp(0.0,1.0), normalize=True, scale_each=True)
 
-        print('Epoch[{}/{}] Train Acc: {:.4f}'.format(ep,max_epoch, acc))
-        print('='*40)
+            if writer is not None:
+                writer.add_image('train/recon_img', recon_image, global_step)
+                writer.add_image('train/gt_img', gt_image, global_step)
 
-        writer.add_scalar('train/acc', acc, ep)
-    
-    elif task_type == 'regression':
-        err = get_mean_squared_error(preds, gts)
-        print('Epoch[{}/{}] Train Err: {:.4f}'.format(ep,max_epoch, err))
-        print ('='*40)
-
-        writer.add_scalar('train/err', err, ep)
+    print ('Train Summary[{},{}] : Loss: {:.4f}'.format(ep, max_epoch, epoch_loss/local_step))
 
 @torch.no_grad() # stop calculating gradient
-def test(ep, max_epoch, model, test_loader, writer, pbar=None, hard_sample_mining = False, confusion_matrix=False, n_class = 5, task_type = 'classification'):
+def test(ep, max_epoch, model, test_loader, writer, loss_fn=None, pbar=None):
     model.eval()
 
-    preds = []
-    gts = []
+    epoch_loss = 0.0
+    local_step = 0
+    global_step = (ep - 1) * len(test_loader)
 
-    hardsample_dict = get_sample_dict()
-
+    
     for idx, batch in enumerate(test_loader):
         x, y = batch
         x = x.cuda()
-        y = y.cuda()
 
-        out = model(x)
-        preds.append(out.data.cpu())
-        gts.append(y.data.cpu())
+        x_hat, latent_code = model(x)
+        loss = loss_fn(x_hat, x)
+        epoch_loss += loss.item()
 
-        if hard_sample_mining:
-            hardsample_dict = update_hardsample_indice(out.data.cpu(), y.data.cpu(), hardsample_dict,x )
+        local_step += 1
+        
+        if idx % 10 ==0:
+            recon_image = vutils.make_grid(x_hat.detach().cpu().clamp(0.0,1.0), normalize=True, scale_each=True)
+            gt_image    = vutils.make_grid(x.cpu().clamp(0.0,1.0), normalize=True, scale_each=True)
+
+            if writer is not None:
+                writer.add_image('test/recon_img', recon_image, global_step)
+                writer.add_image('test/gt_img', gt_image, global_step)
+
 
         if pbar is not None:
             pbar.update()
 
-    preds = torch.cat(preds)
-    gts = torch.cat(gts)
-
-    if task_type == 'classification':
-
-        acc = calc_accuracy(preds, gts)
-        print ('Epoch[{}/{}] TestAcc: {:.4f}'.format(ep, max_epoch, acc))
-        print ('+'*40)
-
-        writer.add_scalar('test/acc', acc, ep)
-        ret = acc
-    
-    elif task_type == 'regression':
-        err = get_mean_squared_error(preds, gts)
-        print ('Epoch[{}/{}] Test Err: {:.4f}'.format(ep, max_epoch, err))
-        print ('='*40)
-
-        writer.add_scalar('test/err', err, ep)
-        ret = err
-
-    if hard_sample_mining:
-        index2cls_name = {
-            0: 0,
-            1: 1,
-            2: 2,
-            3: 3,
-            4: 4,
-        }
-
-        for gt_k in hardsample_dict:
-            for pred_k, samples in hardsample_dict[gt_k].items():
-
-                if samples:
-                    num_sample = len(samples)
-                    text = str(index2cls_name[gt_k]) + '/' + str(index2cls_name[pred_k])
-
-                    samples = torch.cat(samples)
-
-                    grid_samples = vutils.make_grid(tensor_rgb2bgr(samples), normalize = True, scale_each = True)
-                    writer.add_image(text, grid_samples, 0)
-
-                    print('{} : {}'.format(text, num_sample))
-
-    if confusion_matrix:
-        cm_image = get_confusion_matrix_image(preds, gts)
-        writer.add_image('test/confusion_matrix', cm_image, 0)
+    epoch_loss /=local_step
+    print ('Test Summary[{}/{}] : Loss {:.4f}'.format(ep, max_epoch, epoch_loss))
+    writer.add_scalar('test/loss', epoch_loss, (ep-1) * len(test_loader))
 
         
-    return ret
+       
+    return epoch_loss
 
 def grad_cam(model, data_loader, writer, cam, export_csv, n_class, task_type):
     model.eval()

@@ -16,77 +16,86 @@ def main():
     # TODO : apply easydict
     args = get_hyperparameters()                 #             
 
-    for model_name in args['name']:              # loop in various models
+    model = get_model(
+        global_avg_pool = args['global_avg_pool'],
+        z_dim = args['z_dim'],
+        input_size = (2,3, *args['image_size']),
+        n_class = args['n_class']
+    )    
 
-        input_size = args['image_size']
-        model = get_model(model_name, args['n_class'], input_size = (2,3, *input_size))
 
-        if args['loss'] in ['ce', 'cross-entropy']:
-            loss = torch.nn.CrossEntropyLoss()
-            task_type = 'classification'
+    optimizer = torch.optim.Adam(model.parameters(), lr=args['learning_rate'])
 
-        elif args['loss'] in ['mse', 'mean_squared_error']:
-            loss = torch.nn.MSELoss()
-            task_type = 'regression'
-        else:
-            raise ValueError
+    if args.get('mile_stone') is not None:
+        scheduler = torch.optim.lr_scheduler.MultiStepLR(
+            optimizer, milestones = args['mile_stone'], gamma = 0.1)            
+    else:
+        scheduler = None
 
-        optimizer = torch.optim.Adam(model.parameters(), lr=args['learning_rate'])
+    # loss_fn = torhc.nn.L1Loss()
+    loss_fn = torch.nn.MSELoss()
+    
+    mode = 'train'
 
-        if args.get('mile_stone') is not None:
-            scheduler = torch.optim.lr_scheduler.MultiStepLR(
-                optimizer, milestones = args['mile_stone'], gamma = 0.1)            
-        else:
-            scheduler = None
+    small_loader = get_dataloader(
+        dataset = args['dataset'],
+        data_dir = args[mode]['img_dir'],
+        ann_path = args[mode]['ann_file'],
+        mode = mode,
+        batch_size = args['batch_size'],
+        num_workers = args['workers_per_gpu'],
+        pipeline = args[mode]['pipeline'],
+        csv = False,
+        small_set = True
+    )
 
-        mode = 'train'
+    '''
+    train_loader = get_dataloader(
+        dataset = args['dataset'],
+        data_dir = args[mode]['img_dir'],
+        ann_path = args[mode]['ann_file'],
+        mode = mode,
+        batch_size = args['batch_size'],
+        num_workers = args['workers_per_gpu'],
+        pipeline = args[mode]['pipeline'],
+        csv = False
+    )
 
-        train_loader = get_dataloader(
-            dataset = args['dataset'],
-            data_dir = args[mode]['img_dir'],
-            ann_path = args[mode]['ann_file'],
-            mode = mode,
-            batch_size = args['batch_size'],
-            num_workers = args['workers_per_gpu'],
-            pipeline = args[mode]['pipeline'],
-            csv = False
-        )
+    
+    mode = 'test'
+    test_loader = get_dataloader(
+        dataset = args['dataset'],
+        data_dir = args[mode]['img_dir'],
+        ann_path = args[mode]['ann_file'],
+        mode = mode,
+        batch_size = args['batch_size'],
+        num_workers = args['workers_per_gpu'],
+        pipeline = args[mode]['pipeline'],
+        csv = False
+    )
+    '''
+    writer = get_logger(args['save_root'] )
 
+
+
+    trainer(                                      # from runner.py
+        max_epoch = args['max_epoch'],
+        model = model,
+        # train_loader = train_loader,
+        # test_loader = test_loader,
+        train_loader = small_loader,
+        test_loader = small_loader,
+        loss_fn = loss_fn,
+        optimizer = optimizer,
+        scheduler = scheduler,
+        meta = {
+            'save_every' : 10,
+            'print_every' : 5,
+            'test_every' : 10
+        },
+        writer = writer
         
-        mode = 'test'
-        test_loader = get_dataloader(
-            dataset = args['dataset'],
-            data_dir = args[mode]['img_dir'],
-            ann_path = args[mode]['ann_file'],
-            mode = mode,
-            batch_size = args['batch_size'],
-            num_workers = args['workers_per_gpu'],
-            pipeline = args[mode]['pipeline'],
-            csv = False
-        )
-
-        #writer = get_logger(args['save_root'] )
-
-        save_path = os.path.join(args['save_root'], model_name)
-        writer = get_logger(save_path)
-
-
-        trainer(                                      # from runner.py
-            max_epoch = args['max_epoch'],
-            model = model,
-            train_loader = train_loader,
-            test_loader = test_loader,
-            loss_fn = loss,
-            optimizer = optimizer,
-            scheduler = scheduler,
-            meta = {
-                'save_every' : 10,
-                'print_every' : 5,
-                'test_every' : 10
-            },
-            writer = writer,
-            task_type = task_type
-        )
+    )
 
 
 if __name__ == '__main__':

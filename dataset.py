@@ -6,7 +6,7 @@ import numpy as np
 from PIL import Image
 import pandas as pd
 
-from torch.utils.data import Dataset, DataLoader
+from torch.utils.data import Dataset, DataLoader, Subset
 import torch
 from torchvision import transforms
 
@@ -15,7 +15,7 @@ from utils import build_transform_from_cfg
 
 
 
-def get_dataloader(dataset, data_dir, ann_path, mode, pipeline, csv, batch_size, num_workers):
+def get_dataloader(dataset, data_dir, ann_path, mode, pipeline, csv, batch_size, num_workers, small_set = None):
     if mode == 'train':
         is_training = True
         shuffle = True
@@ -34,6 +34,9 @@ def get_dataloader(dataset, data_dir, ann_path, mode, pipeline, csv, batch_size,
 
     #dataset = CoronaryArteryDataset(df, data_dir, transform, is_training = is_training)
     dataset = getattr(sys.modules[__name__], dataset)(df, data_dir, transform, is_training = is_training, csv=csv)
+
+    if small_set:
+        dataset = Subset(dataset, indices=np.linspace(start=0, stop=len(dataset), num = 8, endpoint= False, dtype=np.uint8))
 
     dataloader = DataLoader(
         dataset,
