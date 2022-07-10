@@ -13,11 +13,13 @@ def trainer(
     model, 
     train_loader, 
     test_loader, 
-    loss_fn,
+    loss_recon,
+    loss_ce,
     optimizer,
     scheduler,
     meta, 
-    writer = None
+    writer = None,
+    visualizer = None
 ):
 
     save_every = meta['save_every']
@@ -26,14 +28,15 @@ def trainer(
 
 
     for ep in range(1, max_epoch+1):
-        train(ep, max_epoch, model, train_loader, loss_fn, optimizer, writer, print_every)
+        train(ep, max_epoch, model, train_loader, loss_recon, loss_ce, optimizer, writer, print_every, visualizer=visualizer)
         if scheduler is not None:
             scheduler.step()
 
 
         if ep % test_every == 0:
-            loss = test(ep, max_epoch, model, test_loader, writer, loss_fn = loss_fn)
-            loss *= -1
+            loss = test(ep, max_epoch, model, test_loader, writer, loss_recon = loss_recon, loss_ce=loss_ce, visualizer=visualizer)
+            if loss_ce is None:
+                loss *= -1
 
             
             writer.update(model, loss)
@@ -69,7 +72,7 @@ def tester(
 
 
 
-def train(ep, max_epoch, model, train_loader, loss_fn, optimizer, writer, _print_every):
+def train(ep, max_epoch, model, train_loader, loss_recon, loss_ce, optimizer, writer, _print_every, visualizer = None):
     model.train()
 
     epoch_loss = 0.0
@@ -79,8 +82,8 @@ def train(ep, max_epoch, model, train_loader, loss_fn, optimizer, writer, _print
     if print_every == 0:
         print_every = 1
 
-    recon = []
-    gts = []
+    preds = []
+    gt = []
 
     step = 0
     step_cnt = 1
@@ -88,13 +91,27 @@ def train(ep, max_epoch, model, train_loader, loss_fn, optimizer, writer, _print
     global_step = (ep - 1) * len(train_loader)
     local_step = 0
 
+    vis_dict = {
+        'latent_code' : [],
+        'label' : []
+    }
+
     for i, batch in enumerate(train_loader):
         x, y = batch
         x = x.cuda()
+        y = y.cuda()
 
+        output_dict = model(x)
 
-        x_hat,latent_code = model(x)
-        loss = loss_fn(x_hat, x)
+        loss = 0.0
+
+        if loss_recon is not None:
+            loss += loss_recon(output_dict['x_hat'], x)
+        if loss_ce is not None:
+            loss += loss_ce(output_dict['y_hat'], y)
+            preds.append(output_dict['y_hat'])
+            gt.append(y)
+
 
         optimizer.zero_grad()
         loss.backward()
@@ -105,6 +122,9 @@ def train(ep, max_epoch, model, train_loader, loss_fn, optimizer, writer, _print
         step += 1
         global_step += 1
         local_step += 1
+
+        vis_dict['latent_code'].append(output_dict['latent_code'].detach().cpu())
+        vis_dict['label'].append(y.cpu())
 
 
         if (i+1) % print_every == 0:
@@ -118,6 +138,7 @@ def train(ep, max_epoch, model, train_loader, loss_fn, optimizer, writer, _print
             step_cnt += 1
 
             # add_img
+            x_hat = output_dict['x_hat']
             recon_image = vutils.make_grid(x_hat.detach().cpu().clamp(0.0,1.0), normalize=True, scale_each=True)
             gt_image    = vutils.make_grid(x.detach().cpu().clamp(0.0,1.0), normalize=True, scale_each=True)
 
@@ -127,26 +148,52 @@ def train(ep, max_epoch, model, train_loader, loss_fn, optimizer, writer, _print
 
     print ('Train Summary[{},{}] : Loss: {:.4f}'.format(ep, max_epoch, epoch_loss/local_step))
 
+
+    if loss_ce is not None:
+        preds = torch.cat(preds)
+        gt = torch.cat(gt)
+
+        acc = torch.mean((preds.argmax(dim=1) == gt).float())
+        print ('Train Summary[{},{}] : Acc: {:.4f}'.format(ep, max_epoch, acc))
+        writer.add_scalar('train/acc', acc, ep)
+
+    if visualizer is not None:
+        vis_map = visualizer(vis_dict)
+        writer.add_image('train/latent_code', vis_map, ep)
+
+
 @torch.no_grad() # stop calculating gradient
-def test(ep, max_epoch, model, test_loader, writer, loss_fn=None, pbar=None):
+def test(ep, max_epoch, model, test_loader, writer, loss_recon=None, loss_ce = None, visualizer = None,  pbar=None):
     model.eval()
 
     epoch_loss = 0.0
     local_step = 0
     global_step = (ep - 1) * len(test_loader)
 
+    preds = []
+    gt = []
+
     
     for idx, batch in enumerate(test_loader):
         x, y = batch
         x = x.cuda()
+        y = y.cuda()
 
-        x_hat, latent_code = model(x)
-        loss = loss_fn(x_hat, x)
-        epoch_loss += loss.item()
+        output_dict = model(x)
+
+        if loss_recon is not None:
+            loss = loss_recon(output_dict['x_hat'], x)
+            epoch_loss += loss.item()
+
+        if loss_ce is not None:
+            preds.append(output_dict['y_hat'])
+            gt.append(y)
+
 
         local_step += 1
         
         if idx % 10 ==0:
+            x_hat = output_dict['x_hat']
             recon_image = vutils.make_grid(x_hat.detach().cpu().clamp(0.0,1.0), normalize=True, scale_each=True)
             gt_image    = vutils.make_grid(x.cpu().clamp(0.0,1.0), normalize=True, scale_each=True)
 
@@ -162,9 +209,18 @@ def test(ep, max_epoch, model, test_loader, writer, loss_fn=None, pbar=None):
     print ('Test Summary[{}/{}] : Loss {:.4f}'.format(ep, max_epoch, epoch_loss))
     writer.add_scalar('test/loss', epoch_loss, (ep-1) * len(test_loader))
 
-        
+    if loss_ce is not None:
+        preds = torch.cat(preds)
+        gt = torch.cat(gt)
+
+        acc = torch.mean((preds.argmax(dim=1) == gt).float())
+        print ('Test Summary[{},{}] : Acc: {:.4f}'.format(ep, max_epoch, acc))
+        writer.add_scalar('test/acc', acc, ep)
+
+        return acc  
        
     return epoch_loss
+
 
 def grad_cam(model, data_loader, writer, cam, export_csv, n_class, task_type):
     model.eval()

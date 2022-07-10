@@ -10,6 +10,7 @@ from dataset import get_dataloader
 
 from logger import get_logger
 from runner import trainer
+from visualizer import Umap
 
 
 def main():
@@ -23,8 +24,41 @@ def main():
         n_class = args['n_class']
     )    
 
+    if args['train_target'] == 'classifier':
+        optimizer = torch.optim.Adam(model.classifier.parameters(), lr=args['learning_rate'])
+        for param in model.decoder.parameters():
+            param.requires_grad = False
+        for param in model.encoder.parameters():
+            param.requires_grad = False
 
-    optimizer = torch.optim.Adam(model.parameters(), lr=args['learning_rate'])
+        try:
+            for param in model.encoder_fc.parameters():
+                param.requires_grad = False
+            
+        except:
+            pass
+
+        loss_recon = None
+        loss_ce = torch.nn.CrossEntropyLoss()
+
+    elif args['train_target'] == 'joint':
+        optimizer = torch.optim.Adam(model.parameters(), lr=args['learning_rate'])
+        loss_recon = torch.nn.MSELoss()
+        loss_ce = torch.nn.CrossEntropyLoss()
+
+    elif args['train_target'] == 'fine-tune':
+        optimizer = torch.optim.Adam(
+            list(model.encoder.parameters())
+            +list(model.encoder_fc.parameters())
+            +list(model.classifier.parameters()),            
+             lr=args['learning_rate'])
+
+        for param in model.decoder.parameters():
+                param.requires_grad = False
+
+        loss_recon = None
+        loss_ce = torch.nn.CrossEntropyLoss()
+
 
     if args.get('mile_stone') is not None:
         scheduler = torch.optim.lr_scheduler.MultiStepLR(
@@ -32,11 +66,9 @@ def main():
     else:
         scheduler = None
 
-    # loss_fn = torhc.nn.L1Loss()
-    loss_fn = torch.nn.MSELoss()
     
     mode = 'train'
-
+    '''
     small_loader = get_dataloader(
         dataset = args['dataset'],
         data_dir = args[mode]['img_dir'],
@@ -73,19 +105,20 @@ def main():
         pipeline = args[mode]['pipeline'],
         csv = False
     )
-    '''
+    
     writer = get_logger(args['save_root'] )
 
-
+    visualizer = Umap()
 
     trainer(                                      # from runner.py
         max_epoch = args['max_epoch'],
         model = model,
-        # train_loader = train_loader,
-        # test_loader = test_loader,
-        train_loader = small_loader,
-        test_loader = small_loader,
-        loss_fn = loss_fn,
+        train_loader = train_loader,
+        test_loader = test_loader,
+        # train_loader = small_loader,
+        # test_loader = small_loader,
+        loss_recon = loss_recon,
+        loss_ce = loss_ce,
         optimizer = optimizer,
         scheduler = scheduler,
         meta = {
@@ -93,7 +126,8 @@ def main():
             'print_every' : 5,
             'test_every' : 10
         },
-        writer = writer
+        writer = writer,
+        visualizer = visualizer
         
     )
 

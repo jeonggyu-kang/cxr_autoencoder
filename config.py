@@ -18,17 +18,18 @@ _IMAGE_HEIGHT = 896
 
 # model-related params
 model_dict = dict(                  
-    n_class = 5,
-    max_epoch = 200,
-    learning_rate = 1e-3,
+    n_class = 4,
+    max_epoch = 1000,
+    learning_rate = 1e-4,
     # mile_stone = None,
-    mile_stone = [80, 160],
+    mile_stone = [500, 750],
     decay_rate = 0.1,
     loss = 'ce',   # cross-entropy (classification)
     #loss = 'mse',    # mean squared error (regresion)
     image_size = (_IMAGE_WIDTH, _IMAGE_HEIGHT),   # width, height
     global_avg_pool = False,
     z_dim = 512,
+    train_target = 'joint', # classifier, fine-tune
     extra = ['autoencoder-test']
 )
 
@@ -65,12 +66,12 @@ data_dict = dict(
 
     train = dict(
         img_dir = '/home/compu/Projects/project_classifiers/data',
-        ann_file = '/home/compu/Projects/project_classifiers/data/train_dataset.parquet',
+        ann_file = '/home/compu/Projects/project_classifiers/data/train_dataset_cac.parquet',
         pipeline = train_pipeline
     ),
     test = dict(
         img_dir = '/home/compu/Projects/project_classifiers/data',
-        ann_file = '/home/compu/Projects/project_classifiers/data/test_dataset.parquet',
+        ann_file = '/home/compu/Projects/project_classifiers/data/test_dataset_cac.parquet',
         pipeline = test_pipeline
     ),
 )

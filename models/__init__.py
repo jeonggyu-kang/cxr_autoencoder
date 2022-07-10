@@ -2,7 +2,13 @@ from .autoencoder import CXRAutoencoder
 import torch
 
 def get_model(global_avg_pool, z_dim, input_size=(2,3,448,448),n_class=None, ckpt_path = None):
-    model = CXRAutoencoder(global_avg_pool=global_avg_pool, z_dim=z_dim, input_shape = input_size )
+
+    model = CXRAutoencoder(
+          global_avg_pool=global_avg_pool, 
+          z_dim=z_dim, 
+          input_shape = input_size,
+          n_class = n_class
+    )
 
 
     if ckpt_path is not None:
