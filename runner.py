@@ -220,10 +220,10 @@ def test(ep, max_epoch, model, test_loader, writer, loss_recon=None, loss_ce = N
         # confusion matrix add
 
         cm_image = get_confusion_matrix_image(preds.detach().cpu(), gt.cpu(), normalize=False)
-        writer.add_image('test/unnrom_cm', cm_image, ep))
+        writer.add_image('test/unnorm_cm', cm_image, ep))
 
         cm_image = get_confusion_matrix_image(preds.detach().cpu(), gt.cpu(), normalize=True)
-        writer.add_image('test/unnrom_cm', cm_image, ep))
+        writer.add_image('test/norm_cm', cm_image, ep))
 
         return acc  
        
