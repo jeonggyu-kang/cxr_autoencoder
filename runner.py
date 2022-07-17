@@ -217,6 +217,14 @@ def test(ep, max_epoch, model, test_loader, writer, loss_recon=None, loss_ce = N
         print ('Test Summary[{},{}] : Acc: {:.4f}'.format(ep, max_epoch, acc))
         writer.add_scalar('test/acc', acc, ep)
 
+        # confusion matrix add
+
+        cm_image = get_confusion_matrix_image(preds.detach().cpu(), gt.cpu(), normalize=False)
+        writer.add_image('test/unnrom_cm', cm_image, ep))
+
+        cm_image = get_confusion_matrix_image(preds.detach().cpu(), gt.cpu(), normalize=True)
+        writer.add_image('test/unnrom_cm', cm_image, ep))
+
         return acc  
        
     return epoch_loss
