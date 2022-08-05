@@ -55,7 +55,7 @@ class Umap:
             data = data.reshape(n,-1).astype(np.float32)
             label = label.reshape(n,-1).astype(np.float32)
 
-            idx = [random.randint(0,len(data)) for i in range(self.n_sample)]
+            idx = [random.randint(0,self.n_sample) for i in range(self.n_sample)]
             sampled_data = [data[i] for i in idx]
             sampled_label = [label[i] for i in idx]
             return sampled_data, sampled_label

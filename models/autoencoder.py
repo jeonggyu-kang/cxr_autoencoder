@@ -21,15 +21,17 @@ class CXRAutoencoder(nn.Module):
         z_dim = 512, 
         input_shape=(2, 3, 448, 448), 
         n_class=None,
+        z_cac = None
     ):
         super(CXRAutoencoder, self).__init__()
+        self.z_cac = z_cac
 
-        self.encoder = modules.resnet50(pretrained = True)
+        self.encoder = modules.resnet18(pretrained = True)
         bottleneck_shape = _get_eleme_num(self.encoder, torch.randn(input_shape))
 
         self.global_avg_pool = global_avg_pool
         if self.global_avg_pool:
-            self.encoder_fc = nn.Linear(2048, z_dim)
+            self.encoder_fc = nn.Linear(bottleneck_shape[0], z_dim)
             self.decoder = modules.ResDeconv(
                 block=modules.BasicBlock,
                 global_avg_pool = True,
@@ -41,18 +43,34 @@ class CXRAutoencoder(nn.Module):
         
         assert n_class is not None
         if self.global_avg_pool:
-            self.classifier = nn.Sequential(
-                nn.Linear(z_dim, 256),
-                nn.ReLU(True),
-                nn.Linear(256, n_class)
-            )
+
+            if z_cac is None:
+
+                self.classifier = nn.Sequential(
+                    nn.Linear(z_dim, 256),
+                    nn.ReLU(True),
+                    nn.Linear(256, n_class)
+                )
+
+            else:
+                assert isinstance(z_cac, int)
+                self.classifier = nn.Sequential(
+                    nn.Linear(z_cac, 64),
+                    nn.ReLU(True),
+                    nn.Linear(64, n_class)
+                )
+    
         else:
+
             self.classifier = nn.Sequential(
                 nn.Flatten(),
                 nn.Linear(bottleneck_shape[0] * bottleneck_shape[1] * bottleneck_shape[2], 256),
                 nn.ReLU(True),
                 nn.Linear(256, n_class)
             )
+
+
+
     
     def forward(self, x): # x: x-ray
         latent_code = self.encoder(x)
@@ -62,7 +80,11 @@ class CXRAutoencoder(nn.Module):
 
         x_hat = self.decoder(latent_code)
 
-        y_hat = self.classifier(latent_code)
+        if self.z_cac is None:
+            y_hat = self.classifier(latent_code)
+
+        else:
+            y_hat = self.classifier(latent_code[:, :self.z_cac])
 
         output_dict = {
             'x_hat' : x_hat,

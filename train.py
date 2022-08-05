@@ -1,6 +1,8 @@
 # train process main script
 import os
 
+os.environ['CUDA_VISIBLE_DEVICES'] = "1"
+
 import torch
 
 from models import get_model                     # "models" is a directory 
@@ -20,6 +22,7 @@ def main():
     model = get_model(
         global_avg_pool = args['global_avg_pool'],
         z_dim = args['z_dim'],
+        z_cac = args['z_cac'],
         input_size = (2,3, *args['image_size']),
         n_class = args['n_class']
     )    
@@ -122,9 +125,9 @@ def main():
         optimizer = optimizer,
         scheduler = scheduler,
         meta = {
-            'save_every' : 10,
+            'save_every' : 5,
             'print_every' : 5,
-            'test_every' : 10
+            'test_every' : 5
         },
         writer = writer,
         visualizer = visualizer
