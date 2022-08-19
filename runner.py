@@ -157,10 +157,6 @@ def train(ep, max_epoch, model, train_loader, loss_recon, loss_ce, optimizer, wr
         print ('Train Summary[{},{}] : Acc: {:.4f}'.format(ep, max_epoch, acc))
         writer.add_scalar('train/acc', acc, ep)
 
-    if visualizer is not None:
-        vis_map = visualizer(vis_dict)
-        writer.add_image('train/latent_code', vis_map, ep)
-
 
 @torch.no_grad() # stop calculating gradient
 def test(ep, max_epoch, model, test_loader, writer, loss_recon=None, loss_ce = None, visualizer = None,  pbar=None):
@@ -217,13 +213,11 @@ def test(ep, max_epoch, model, test_loader, writer, loss_recon=None, loss_ce = N
         print ('Test Summary[{},{}] : Acc: {:.4f}'.format(ep, max_epoch, acc))
         writer.add_scalar('test/acc', acc, ep)
 
-        # confusion matrix add
-
         cm_image = get_confusion_matrix_image(preds.detach().cpu(), gt.cpu(), normalize=False)
-        writer.add_image('test/unnorm_cm', cm_image, ep))
+        writer.add_image('test/unnorm_cm', cm_image, ep)
 
         cm_image = get_confusion_matrix_image(preds.detach().cpu(), gt.cpu(), normalize=True)
-        writer.add_image('test/norm_cm', cm_image, ep))
+        writer.add_image('test/norm_cm', cm_image, ep)
 
         return acc  
        

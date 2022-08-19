@@ -19,18 +19,20 @@ _IMAGE_HEIGHT = 896
 # model-related params
 model_dict = dict(                  
     n_class = 4,
-    max_epoch = 1000,
+    max_epoch = 200,
     learning_rate = 1e-4,
     # mile_stone = None,
-    mile_stone = [500, 750],
+    mile_stone = [150, 180],
     decay_rate = 0.1,
     loss = 'ce',   # cross-entropy (classification)
     #loss = 'mse',    # mean squared error (regresion)
     image_size = (_IMAGE_WIDTH, _IMAGE_HEIGHT),   # width, height
-    global_avg_pool = False,
+    global_avg_pool = True,
     z_dim = 512,
+    # z_cac = None, # all-latent code
+    z_cac = 64,    # partial latent code
     train_target = 'joint', # classifier, fine-tune
-    extra = ['autoencoder-test']
+    extra = ['autoencoder-test']    
 )
 
 train_pipeline = [
@@ -39,6 +41,19 @@ train_pipeline = [
         width = _IMAGE_WIDTH,
         height = _IMAGE_HEIGHT
     ),
+
+
+    dict(
+        type = 'Contrastive',
+        p = 0.5,
+        w = 1.3
+    ),
+
+    dict(
+        type = 'Sharpness',
+        p = 0.5
+    ),
+
     dict(
         type= 'ToTensor'
     ),
@@ -61,17 +76,17 @@ data_dict = dict(
     dataset = 'CoronaryArteryDataset',
     #dataset = 'AGEDataset',
     save_root = './work_dir',
-    batch_size = 4,
+    batch_size = 2,
     workers_per_gpu = 1,
 
     train = dict(
-        img_dir = '/home/compu/Projects/project_classifiers/data',
-        ann_file = '/home/compu/Projects/project_classifiers/data/train_dataset_cac.parquet',
+        img_dir = '/mnt/project_classifiers/data',
+        ann_file = '/mnt/project_classifiers/data/train_dataset_cac.parquet',
         pipeline = train_pipeline
     ),
     test = dict(
-        img_dir = '/home/compu/Projects/project_classifiers/data',
-        ann_file = '/home/compu/Projects/project_classifiers/data/test_dataset_cac.parquet',
+        img_dir = '/mnt/project_classifiers/data',
+        ann_file = '/mnt/project_classifiers/data/test_dataset_cac.parquet',
         pipeline = test_pipeline
     ),
 )

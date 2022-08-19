@@ -143,7 +143,49 @@ class HueSaturationValue(ImageTransform):
 
 class CLAHE(ImageTransform):
     def __init__(self, **kwargs):
-        self.transform = A.CLAHE(p=kwargs.get('p'))        
+        self.transform = A.CLAHE(p=kwargs.get('p'))    
+
+
+class Sharpness(ImageTransform):
+    def __init__(self, **kwargs):
+
+        self.p = kwargs.get('p')
+
+        if self.p is None:
+            self.p = 0.5 
+        self.transform = A.Sharpen(p=1.0)      
+
+    def __call__(self, data):
+        
+        if random.random() < self.p:
+            image = data['image']
+            image *= 255
+
+            augmented = self.transform(image = image) # sharpen
+            image = augmented['image'] / 255.0
+
+            data['image'] = image
+        
+        return data
+        
+
+class Contrastive(ImageTransform):
+    def __init__(self, **kwargs):
+        self.p = kwargs.get('p')
+        if self.p is None:
+            self.p = 0.5
+
+        self.w = kwargs.get('w')
+        assert self.w is not None, 'W value must be provided.'
+
+    def __call__(self, data):
+        if random.random() < self.p:
+            image = data['image'] # H x W x 1
+
+            image = image ** self.w
+            
+            data['image'] = image
+        return data
 
 def build_transform_from_cfg(pipeline):
     transform = Compose(pipeline)
