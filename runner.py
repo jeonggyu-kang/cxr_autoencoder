@@ -192,7 +192,8 @@ def test(ep, max_epoch, model, test_loader, writer, loss_recon=None, loss_ce = N
             preds.append(output_dict['y_hat'])
             gt.append(y)
 
-
+        latent_dict['latent_code'].append(output_dict['latent_code'].cpu())
+        latent_dict['label'].append(y.cpu())
         local_step += 1
         
         if idx % 10 ==0:
