@@ -51,20 +51,17 @@ def tester(
     model,
     test_loader,
     writer,
-    hard_sample_mining,
+    visualizer,
     confusion_matrix,
-    n_class,
-    task_type
+
 ):
     pbar=tqdm(total=len(test_loader))
     acc = test(
         None,None,
         model, test_loader, writer,
+        visualizer = visualizer,
         pbar = pbar,
-        hard_sample_mining = hard_sample_mining,
         confusion_matrix = confusion_matrix,
-        n_class = n_class,
-        task_type = task_type
     )
     
     writer.close()
@@ -159,15 +156,25 @@ def train(ep, max_epoch, model, train_loader, loss_recon, loss_ce, optimizer, wr
 
 
 @torch.no_grad() # stop calculating gradient
-def test(ep, max_epoch, model, test_loader, writer, loss_recon=None, loss_ce = None, visualizer = None,  pbar=None):
+def test(ep, max_epoch, model, test_loader, writer, loss_recon=None, loss_ce = None, visualizer = None,  pbar=None, confusion_matrix = False):
     model.eval()
 
     epoch_loss = 0.0
     local_step = 0
-    global_step = (ep - 1) * len(test_loader)
+
+    if ep is not None:
+
+        global_step = (ep - 1) * len(test_loader)
+
+    else:
+        global_step = 0
+        ep = 1
+
 
     preds = []
     gt = []
+
+    latent_dict = {'latent_code': [], 'label': [] }
 
     
     for idx, batch in enumerate(test_loader):
@@ -205,7 +212,11 @@ def test(ep, max_epoch, model, test_loader, writer, loss_recon=None, loss_ce = N
     print ('Test Summary[{}/{}] : Loss {:.4f}'.format(ep, max_epoch, epoch_loss))
     writer.add_scalar('test/loss', epoch_loss, (ep-1) * len(test_loader))
 
-    if loss_ce is not None:
+    if visualizer is not None:
+        umap_img = visualizer(latent_dict)
+        writer.add_image('test/umap', umap_img, ep)
+
+    if loss_ce is not None or confusion_matrix:
         preds = torch.cat(preds)
         gt = torch.cat(gt)
 

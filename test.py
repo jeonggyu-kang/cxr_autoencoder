@@ -7,6 +7,7 @@ from models import get_model
 from logger import get_logger 
 from runner import tester 
 from dataset import get_dataloader
+from visualizer import Umap
 
 def main():
     parser = argparse.ArgumentParser()
@@ -24,50 +25,46 @@ def main():
     args = modulevar.get_hyperparameters(config=_args.config)
 
 
-    for model_name in args['name']:              # loop in various models
-        log_root = os.path.join(_args.log_root, model_name)
+    
 
-        ckpt_path = os.path.join(log_root, 'best.pt')
-        input_size = args['image_size']
-        model = get_model(model_name, args['n_class'], input_size = (2,3, *input_size), ckpt_path = ckpt_path)
-
-        if args['loss'] in ['ce', 'cross-entropy']:
-            task_type = 'classification'
-
-        elif args['loss'] in ['mse', 'mean_squared_error']:
-            task_type = 'regression'
-
-        else:
-            raise ValueError
-
-
-        mode = 'test'
-        test_loader = get_dataloader(
-            dataset = args['dataset'],
-            data_dir = args[mode]['img_dir'],
-            ann_path = args[mode]['ann_file'],
-            mode = mode,
-            batch_size = args['batch_size'],
-            num_workers = args['workers_per_gpu'],
-            pipeline = args[mode]['pipeline'],
-            csv = False
+    ckpt_path = os.path.join(_args.log_root, 'best.pt')
+    model = get_model(
+        global_avg_pool = args['global_avg_pool'],
+        z_dim = args['z_dim'],
+        z_cac = args['z_cac'],
+        input_size = (2, 3, *args['image_size']),
+        n_class = args['n_class'],
+        ckpt_path = ckpt_path
         )
 
-        #writer = get_logger(args['save_root'] )
+        
 
-        save_path = os.path.join(log_root, 'eval')
-        writer = get_logger(save_path)
+    mode = 'test'
+    test_loader = get_dataloader(
+        dataset = args['dataset'],
+        data_dir = args[mode]['img_dir'],
+        ann_path = args[mode]['ann_file'],
+        mode = mode,
+        batch_size = args['batch_size'],
+        num_workers = args['workers_per_gpu'],
+        pipeline = args[mode]['pipeline'],
+        csv = False
+    )
+
+    save_path = os.path.join(__args.log_root, 'eval')
+    writer = get_logger(save_path)
+
+    visualizer = Umap()
 
 
-        tester(
-            model = model,    
-            test_loader = test_loader,
-            writer = writer,
-            hard_sample_mining = True,
-            confusion_matrix = True,
-            n_class = args['n_class'],
-            task_type = task_type
-        )
+    tester(
+        model = model,
+        test_loader = test_loader,
+        writer = writer,
+        visualizer = visualizer,
+        confusion_matrix = True
+    )
+
 
 
 if __name__ == '__main__':

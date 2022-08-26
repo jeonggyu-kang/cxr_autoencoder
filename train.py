@@ -1,7 +1,9 @@
 # train process main script
 import os
+import cv2
+import numpy as np
 
-os.environ['CUDA_VISIBLE_DEVICES'] = "1"
+# os.environ['CUDA_VISIBLE_DEVICES'] = "3"
 
 import torch
 

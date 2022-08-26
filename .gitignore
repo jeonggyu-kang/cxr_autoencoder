@@ -139,5 +139,8 @@ dmypy.json
 *.npy
 *.dcm 
 *.DCM 
+*.xlsx
+*.xls
+*.DS_Store
 work_dir/
 data/

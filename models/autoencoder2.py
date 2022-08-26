@@ -26,48 +26,63 @@ class CXRAutoencoder(nn.Module):
         super(CXRAutoencoder, self).__init__()
         self.z_cac = z_cac
 
-        # encoder 
-        self.encoder = modules.resnet18(pretrained = True)
+        self.encoder = modules.resnet50(pretrained = True)
         bottleneck_shape = _get_eleme_num(self.encoder, torch.randn(input_shape))
 
-        # encoder fc    
-        self.encoder_fc = nn.Linear(bottleneck_shape[0], z_dim)
-
-        # decoder 
-        self.decoder = modules.ResDeconv(
-            block=modules.BasicBlock,
-            global_avg_pool = True,
-            z_all = z_dim,
-            bottleneck_shape = (2048, 28, 28)
-        )
+        self.global_avg_pool = global_avg_pool
+        if self.global_avg_pool:
+            self.encoder_fc = nn.Linear(bottleneck_shape[0], z_dim)
+            self.decoder = modules.ResDeconv(
+                block=modules.BasicBlock,
+                global_avg_pool = True,
+                z_all = z_dim,
+                bottleneck_shape = bottleneck_shape
+            )
+        else:
+            self.decoder = modules.ResDeconv(modules.BasicBlock)
         
         assert n_class is not None
-        
-        if self.z_cac is None: 
+        if self.global_avg_pool:
+
+            if z_cac is None:
+
+                self.classifier = nn.Sequential(
+                    nn.Linear(z_dim, 256),
+                    nn.ReLU(True),
+                    nn.Linear(256, n_class)
+                )
+
+            else:
+                assert isinstance(z_cac, int)
+                self.classifier = nn.Sequential(
+                    nn.Linear(z_cac, 64),
+                    nn.ReLU(True),
+                    nn.Linear(64, n_class)
+                )
+    
+        else:
+
             self.classifier = nn.Sequential(
-                nn.Linear(z_dim, 256),
+                nn.Flatten(),
+                nn.Linear(bottleneck_shape[0] * bottleneck_shape[1] * bottleneck_shape[2], 256),
                 nn.ReLU(True),
                 nn.Linear(256, n_class)
             )
-        else: # latent code split 
-            assert isinstance(z_cac, int)
-            self.classifier = nn.Sequential(
-                nn.Linear(z_cac, 64),
-                nn.ReLU(True),
-                nn.Linear(64, n_class)
-            )
-    
+
+
 
     
     def forward(self, x): # x: x-ray
         latent_code = self.encoder(x)
-        latent_code = latent_code.mean(-1).mean(-1) # (2048 X H x W) -> (2048)
-        latent_code = self.encoder_fc(latent_code)
+        if self.global_avg_pool:
+            latent_code = latent_code.mean(-1).mean(-1) # (2048 X 14 x 14) -> (2048)
+            latent_code = self.encoder_fc(latent_code)
 
         x_hat = self.decoder(latent_code)
 
         if self.z_cac is None:
             y_hat = self.classifier(latent_code)
+
         else:
             y_hat = self.classifier(latent_code[:, :self.z_cac])
 
