@@ -3,7 +3,11 @@ import os
 import cv2
 import numpy as np
 
-# os.environ['CUDA_VISIBLE_DEVICES'] = "3"
+<<<<<<< HEAD
+
+=======
+os.environ['CUDA_VISIBLE_DEVICES'] = "1"
+>>>>>>> 7e70fcd8193f0a3a6226ce3c49387db63de0e1cb
 
 import torch
 
